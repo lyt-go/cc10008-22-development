@@ -37,6 +37,9 @@
       <thead>
         <tr>
           <th v-for="column in columns" :key="column">{{ column }}</th>
+          <th>流失绝对量</th>
+          <th>流失占比</th>
+          <th>流失诊断来源</th>
           <th>当前状态</th>
           <th>可执行动作</th>
         </tr>
@@ -44,6 +47,9 @@
       <tbody>
         <tr v-for="row in rows" :key="String(row.id)">
           <td v-for="column in columns" :key="column">{{ row[column] ?? '—' }}</td>
+          <td>{{ lossOf(row).lossAbsolute }}</td>
+          <td>{{ lossOf(row).lossRatio }}</td>
+          <td>{{ lossOf(row).source }}</td>
           <td>{{ row.status }}</td>
           <td class="row-actions">
             <button
@@ -58,15 +64,22 @@
           </td>
         </tr>
         <tr v-if="!rows.length">
-          <td :colspan="columns.length + 2" class="empty-state">暂无表单分析数据，可先登记表单诊断</td>
+          <td :colspan="columns.length + 5" class="empty-state">暂无表单分析数据，可先登记表单诊断</td>
         </tr>
       </tbody>
     </table>
+
+    <p class="loss-note">
+      表单侧读取与新生成报告同一诊断版本：流失绝对量、流失占比取自「漏斗表单流失诊断数据报告」，
+      诊断报告编号与「漏斗表单流失诊断」来源一并保留；尚未生成报告的表单显示「待生成」。
+    </p>
 
     <footer class="page-foot">
       <span>共 {{ total }} 条表单分析记录</span>
       <span v-if="errorMessage" class="error-text">{{ errorMessage }}</span>
     </footer>
+
+    <FunnelFormDiagnosis perspective="form" @changed="reloadGenerated" />
   </section>
 </template>
 
@@ -79,6 +92,9 @@ import {
   moduleMeta,
   runAction as applyAction,
 } from '@/api/local-service'
+import FunnelFormDiagnosis from '@/components/FunnelFormDiagnosis.vue'
+import { formChecklist } from '@/data/diagnosis'
+import type { LossChecklistRow } from '@/data/diagnosis'
 import type { EntryRow } from '@/data/types'
 
 const meta = moduleMeta('formfield')
@@ -98,6 +114,23 @@ const statusSummary = computed(() =>
     count: rows.value.filter((row) => String(row.status) === status).length,
   })),
 )
+
+// 表单分析清单的流失绝对量/流失占比：只从新生成的跨模块诊断报告读取。
+const generated = ref<LossChecklistRow[]>([])
+
+function lossOf(row: EntryRow) {
+  const formNo = String(row['诊断编号'] ?? '')
+  const report = generated.value.find((item) => item.formNo === formNo)
+  return {
+    lossAbsolute: report ? String(report.lossAbsolute) : '待生成',
+    lossRatio: report ? `${(report.lossRatio * 100).toFixed(2)}%` : '待生成',
+    source: report ? `${report.reportNo} · ${report.source}` : '尚未生成漏斗表单流失诊断报告',
+  }
+}
+
+function reloadGenerated() {
+  generated.value = formChecklist()
+}
 
 function resetFilters() {
   filters.value = {}
@@ -128,6 +161,7 @@ function reload() {
     const payload = listEntries(meta.key, filters.value)
     rows.value = payload.items
     total.value = payload.total
+    reloadGenerated()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '表单分析列表读取失败'
   }

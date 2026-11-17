@@ -67,6 +67,8 @@
       <span>共 {{ total }} 条漏斗诊断记录</span>
       <span v-if="errorMessage" class="error-text">{{ errorMessage }}</span>
     </footer>
+
+    <FunnelFormDiagnosis perspective="funnel" />
   </section>
 </template>
 
@@ -79,6 +81,7 @@ import {
   moduleMeta,
   runAction as applyAction,
 } from '@/api/local-service'
+import FunnelFormDiagnosis from '@/components/FunnelFormDiagnosis.vue'
 import type { EntryRow } from '@/data/types'
 
 const meta = moduleMeta('funnel')
